@@ -1,8 +1,8 @@
 use crate::models::*;
-use tracing::{info, error};
 use anyhow::{anyhow, Context, Result};
 use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct OAuth1Token {
@@ -200,13 +200,26 @@ impl GarminApi {
                     if attempt == max_retries {
                         return Err(anyhow!("Garmin API GET returned {}: {}", status, text));
                     }
-                    tracing::warn!("Garmin API GET {} failed with {}: {}. Retrying {}/{}", endpoint, status, text, attempt, max_retries);
+                    tracing::warn!(
+                        "Garmin API GET {} failed with {}: {}. Retrying {}/{}",
+                        endpoint,
+                        status,
+                        text,
+                        attempt,
+                        max_retries
+                    );
                 }
                 Err(e) => {
                     if attempt == max_retries {
                         return Err(anyhow::anyhow!("Garmin API GET request failed: {}", e));
                     }
-                    tracing::warn!("Garmin API GET {} request failed: {}. Retrying {}/{}", endpoint, e, attempt, max_retries);
+                    tracing::warn!(
+                        "Garmin API GET {} request failed: {}. Retrying {}/{}",
+                        endpoint,
+                        e,
+                        attempt,
+                        max_retries
+                    );
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2 * attempt)).await;
@@ -248,13 +261,26 @@ impl GarminApi {
                     if attempt == max_retries {
                         return Err(anyhow!("Garmin API POST returned {}: {}", status, text));
                     }
-                    tracing::warn!("Garmin API POST {} failed with {}: {}. Retrying {}/{}", endpoint, status, text, attempt, max_retries);
+                    tracing::warn!(
+                        "Garmin API POST {} failed with {}: {}. Retrying {}/{}",
+                        endpoint,
+                        status,
+                        text,
+                        attempt,
+                        max_retries
+                    );
                 }
                 Err(e) => {
                     if attempt == max_retries {
                         return Err(anyhow::anyhow!("Garmin API POST request failed: {}", e));
                     }
-                    tracing::warn!("Garmin API POST {} request failed: {}. Retrying {}/{}", endpoint, e, attempt, max_retries);
+                    tracing::warn!(
+                        "Garmin API POST {} request failed: {}. Retrying {}/{}",
+                        endpoint,
+                        e,
+                        attempt,
+                        max_retries
+                    );
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2 * attempt)).await;
@@ -283,13 +309,26 @@ impl GarminApi {
                     if attempt == max_retries {
                         return Err(anyhow!("Garmin API DELETE returned {}: {}", status, text));
                     }
-                    tracing::warn!("Garmin API DELETE {} failed with {}: {}. Retrying {}/{}", endpoint, status, text, attempt, max_retries);
+                    tracing::warn!(
+                        "Garmin API DELETE {} failed with {}: {}. Retrying {}/{}",
+                        endpoint,
+                        status,
+                        text,
+                        attempt,
+                        max_retries
+                    );
                 }
                 Err(e) => {
                     if attempt == max_retries {
                         return Err(anyhow::anyhow!("Garmin API DELETE request failed: {}", e));
                     }
-                    tracing::warn!("Garmin API DELETE {} request failed: {}. Retrying {}/{}", endpoint, e, attempt, max_retries);
+                    tracing::warn!(
+                        "Garmin API DELETE {} request failed: {}. Retrying {}/{}",
+                        endpoint,
+                        e,
+                        attempt,
+                        max_retries
+                    );
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2 * attempt)).await;

@@ -1,6 +1,6 @@
 use crate::models::{TrainingPlan, TrainingTarget, WorkoutType};
-use tracing::{info, error};
 use chrono::{Duration, Utc};
+use tracing::{error, info};
 
 pub struct CoachContext {
     pub goals: Vec<String>,

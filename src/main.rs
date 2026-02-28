@@ -2,8 +2,8 @@ mod ai_client;
 mod api;
 mod bot;
 mod coaching;
-mod db;
 pub mod config;
+mod db;
 mod garmin_api;
 mod garmin_client;
 mod garmin_login;
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(c) => {
             info!("AppConfig loaded successfully: {:?}", c);
             Arc::new(c)
-        },
+        }
         Err(e) => {
             error!("Failed to load configuration: {}", e);
             std::process::exit(1);
@@ -215,8 +215,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if is_api {
         info!("Starting Fitness Coach in API mode.");
-        if let Err(e) =
-            api::run_server(config.clone(), database.clone(), garmin_client.clone(), coach.clone()).await
+        if let Err(e) = api::run_server(
+            config.clone(),
+            database.clone(),
+            garmin_client.clone(),
+            coach.clone(),
+        )
+        .await
         {
             error!("API Server crashed: {}", e);
         }
@@ -224,7 +229,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if is_signal {
-        let bot = bot::BotController::new(config.clone(), garmin_client.clone(), coach.clone(), database.clone());
+        let bot = bot::BotController::new(
+            config.clone(),
+            garmin_client.clone(),
+            coach.clone(),
+            database.clone(),
+        );
         if is_daemon {
             tokio::spawn(async move {
                 bot.run().await;
@@ -244,12 +254,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             crate::bot::start_race_readiness_notifier(garmin_client.clone(), config.clone());
         }
         loop {
-            run_coach_pipeline(config.clone(), garmin_client.clone(), coach.clone(), database.clone(), false).await?;
+            run_coach_pipeline(
+                config.clone(),
+                garmin_client.clone(),
+                coach.clone(),
+                database.clone(),
+                false,
+            )
+            .await?;
             info!("Sleeping for 5 minutes... zzz");
             tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
         }
     } else {
-        run_coach_pipeline(config.clone(), garmin_client.clone(), coach.clone(), database.clone(), true).await?;
+        run_coach_pipeline(
+            config.clone(),
+            garmin_client.clone(),
+            coach.clone(),
+            database.clone(),
+            true,
+        )
+        .await?;
     }
 
     Ok(())
@@ -313,7 +337,8 @@ pub async fn run_coach_pipeline(
                 &auto_analyze_sports,
                 &database,
                 &config,
-            ).await;
+            )
+            .await;
         }
     }
 
@@ -348,12 +373,7 @@ pub async fn run_coach_pipeline(
         });
 
         if force_generation || !has_ai_workouts {
-            generate_and_publish_plan(
-                &brief,
-                &garmin_client,
-                &database,
-                &config,
-            ).await;
+            generate_and_publish_plan(&brief, &garmin_client, &database, &config).await;
         } else {
             info!("\nAI Workouts already scheduled. Skipping automatic workout generation.");
         }
@@ -471,9 +491,7 @@ async fn auto_analyze_recent_activities(
     let yesterday_str = yesterday.format("%Y-%m-%d").to_string();
 
     for act in detailed_activities {
-        if !act.start_time.starts_with(&today_str)
-            && !act.start_time.starts_with(&yesterday_str)
-        {
+        if !act.start_time.starts_with(&today_str) && !act.start_time.starts_with(&yesterday_str) {
             continue;
         }
 
@@ -481,7 +499,10 @@ async fn auto_analyze_recent_activities(
             if auto_analyze_sports.contains(&act_type.to_string()) {
                 let is_analyzed = db.is_activity_analyzed(id).unwrap_or(false);
                 if !is_analyzed {
-                    info!("Activity {} ({}) matches auto_analyze_sports. Requesting analysis...", id, act_type);
+                    info!(
+                        "Activity {} ({}) matches auto_analyze_sports. Requesting analysis...",
+                        id, act_type
+                    );
 
                     let prompt = format!(
                         "Please provide an in-depth analysis of this completed fitness activity. Be encouraging but highly analytical.\n\nYou have been provided with the complete, raw JSON payload direct from Garmin. It contains many undocumented fields, extra metrics, recovery data, elevation, stress, cadence, temperatures, or detailed exercise sets.\n\nPlease actively hunt through this raw JSON and surface interesting insights, anomalies, or performance correlations that wouldn't be obvious from just the basic time/distance metrics. Explain what these deeper metrics mean for the athlete's progress.\n\nKeep the response concise enough for a messaging app (max 2-3 short paragraphs) and format it directly as text without any markdown wrappers.\n\nHere is the raw activity data:\n\n{}",
@@ -617,7 +638,10 @@ async fn generate_and_publish_plan(
                     }
 
                     if generated_count > 0 {
-                        let mut msg = format!("✅ AI Coach has successfully generated and scheduled {} new workouts!", generated_count);
+                        let mut msg = format!(
+                            "✅ AI Coach has successfully generated and scheduled {} new workouts!",
+                            generated_count
+                        );
                         if !scheduled_details.is_empty() {
                             msg.push_str("\n\n");
                             msg.push_str(&scheduled_details.join("\n\n"));

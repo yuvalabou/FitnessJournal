@@ -1,9 +1,9 @@
 use futures_util::StreamExt;
-use tracing::{info, error};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as WsMessage};
+use tracing::{error, info};
 
 use crate::coaching::Coach;
 use crate::db::Database;
@@ -291,7 +291,8 @@ impl BotController {
 
                 // Scan for JSON code block indicating a reschedule
                 if let Ok(json_str) = crate::ai_client::AiClient::extract_json_block(&response) {
-                    if let Ok(workouts) = serde_json::from_str::<Vec<serde_json::Value>>(&json_str) {
+                    if let Ok(workouts) = serde_json::from_str::<Vec<serde_json::Value>>(&json_str)
+                    {
                         for workout_spec in workouts {
                             let _ = crate::workout_builder::WorkoutBuilder::new()
                                 .build_workout_payload(&workout_spec, true);
@@ -415,19 +416,22 @@ impl BotController {
                     }
                 }
             }
-            "/readiness" => {
-                match self.garmin_client.fetch_data().await {
-                    Ok(data) => {
-                        if !self.config.gemini_api_key.is_empty() {
-                            crate::bot::generate_race_readiness_assessment(&data, &self.config.gemini_api_key).await
-                        } else {
-                            "GEMINI_API_KEY is not set. Cannot run readiness assessment.".to_string()
-                        }
+            "/readiness" => match self.garmin_client.fetch_data().await {
+                Ok(data) => {
+                    if !self.config.gemini_api_key.is_empty() {
+                        crate::bot::generate_race_readiness_assessment(
+                            &data,
+                            &self.config.gemini_api_key,
+                        )
+                        .await
+                    } else {
+                        "GEMINI_API_KEY is not set. Cannot run readiness assessment.".to_string()
                     }
-                    Err(e) => format!("Failed to fetch Garmin data: {}", e),
                 }
-            }
-            _ => "Command not recognized. Use /status, /generate, /readiness, or /macros.".to_string(),
+                Err(e) => format!("Failed to fetch Garmin data: {}", e),
+            },
+            _ => "Command not recognized. Use /status, /generate, /readiness, or /macros."
+                .to_string(),
         }
     }
 
@@ -586,7 +590,10 @@ pub fn format_workout_details(workout_spec: &serde_json::Value) -> String {
     out
 }
 
-pub fn start_morning_notifier(garmin_client: Arc<GarminClient>, config: Arc<crate::config::AppConfig>) {
+pub fn start_morning_notifier(
+    garmin_client: Arc<GarminClient>,
+    config: Arc<crate::config::AppConfig>,
+) {
     tokio::spawn(async move {
         let mut last_sent_date = String::new();
 
@@ -641,7 +648,10 @@ pub fn start_morning_notifier(garmin_client: Arc<GarminClient>, config: Arc<crat
     });
 }
 
-pub fn start_weekly_review_notifier(garmin_client: Arc<GarminClient>, config: Arc<crate::config::AppConfig>) {
+pub fn start_weekly_review_notifier(
+    garmin_client: Arc<GarminClient>,
+    config: Arc<crate::config::AppConfig>,
+) {
     tokio::spawn(async move {
         let mut last_sent_week = String::new();
 
@@ -663,7 +673,8 @@ pub fn start_weekly_review_notifier(garmin_client: Arc<GarminClient>, config: Ar
             {
                 match garmin_client.fetch_data().await {
                     Ok(data) => {
-                        let ai_client = crate::ai_client::AiClient::new(config.gemini_api_key.clone());
+                        let ai_client =
+                            crate::ai_client::AiClient::new(config.gemini_api_key.clone());
                         let seven_days_ago = now - chrono::Duration::days(7);
                         let seven_days_ago_str = seven_days_ago.format("%Y-%m-%d").to_string();
 
@@ -753,7 +764,10 @@ pub fn start_weekly_review_notifier(garmin_client: Arc<GarminClient>, config: Ar
     });
 }
 
-pub async fn generate_race_readiness_assessment(data: &crate::models::GarminResponse, gemini_key: &str) -> String {
+pub async fn generate_race_readiness_assessment(
+    data: &crate::models::GarminResponse,
+    gemini_key: &str,
+) -> String {
     let now = chrono::Local::now();
     let today_str = now.format("%Y-%m-%d").to_string();
 
@@ -785,19 +799,52 @@ pub async fn generate_race_readiness_assessment(data: &crate::models::GarminResp
     let twelve_weeks_ago = now - chrono::Duration::days(84);
     let twelve_weeks_ago_str = twelve_weeks_ago.format("%Y-%m-%d").to_string();
 
-    let recent_activities: Vec<_> = data.activities.iter().filter(|a| a.start_time >= twelve_weeks_ago_str).collect();
+    let recent_activities: Vec<_> = data
+        .activities
+        .iter()
+        .filter(|a| a.start_time >= twelve_weeks_ago_str)
+        .collect();
 
-    let total_dur_min: f64 = recent_activities.iter().filter_map(|a| a.duration).sum::<f64>() / 60.0;
-    let total_dist_km: f64 = recent_activities.iter().filter_map(|a| a.distance).sum::<f64>() / 1000.0;
-    let run_count = recent_activities.iter().filter(|a| a.get_activity_type().unwrap_or("").contains("run")).count();
-    let bike_count = recent_activities.iter().filter(|a| a.get_activity_type().unwrap_or("").contains("biking") || a.get_activity_type().unwrap_or("").contains("cycl")).count();
-    let strength_count = recent_activities.iter().filter(|a| a.get_activity_type().unwrap_or("").contains("strength") || a.get_activity_type().unwrap_or("").contains("fitness")).count();
+    let total_dur_min: f64 = recent_activities
+        .iter()
+        .filter_map(|a| a.duration)
+        .sum::<f64>()
+        / 60.0;
+    let total_dist_km: f64 = recent_activities
+        .iter()
+        .filter_map(|a| a.distance)
+        .sum::<f64>()
+        / 1000.0;
+    let run_count = recent_activities
+        .iter()
+        .filter(|a| a.get_activity_type().unwrap_or("").contains("run"))
+        .count();
+    let bike_count = recent_activities
+        .iter()
+        .filter(|a| {
+            a.get_activity_type().unwrap_or("").contains("biking")
+                || a.get_activity_type().unwrap_or("").contains("cycl")
+        })
+        .count();
+    let strength_count = recent_activities
+        .iter()
+        .filter(|a| {
+            a.get_activity_type().unwrap_or("").contains("strength")
+                || a.get_activity_type().unwrap_or("").contains("fitness")
+        })
+        .count();
 
     let mut recovery_str = String::new();
     if let Some(metrics) = &data.recovery_metrics {
-        if let Some(bb) = metrics.current_body_battery { recovery_str.push_str(&format!("Body Battery: {}\n", bb)); }
-        if let Some(ss) = metrics.sleep_score { recovery_str.push_str(&format!("Sleep Score: {}\n", ss)); }
-        if let Some(hrv) = &metrics.hrv_status { recovery_str.push_str(&format!("HRV Status: {}\n", hrv)); }
+        if let Some(bb) = metrics.current_body_battery {
+            recovery_str.push_str(&format!("Body Battery: {}\n", bb));
+        }
+        if let Some(ss) = metrics.sleep_score {
+            recovery_str.push_str(&format!("Sleep Score: {}\n", ss));
+        }
+        if let Some(hrv) = &metrics.hrv_status {
+            recovery_str.push_str(&format!("HRV Status: {}\n", hrv));
+        }
     }
 
     let prompt = format!(
@@ -838,7 +885,10 @@ pub async fn generate_race_readiness_assessment(data: &crate::models::GarminResp
     }
 }
 
-pub fn start_race_readiness_notifier(garmin_client: Arc<GarminClient>, config: Arc<crate::config::AppConfig>) {
+pub fn start_race_readiness_notifier(
+    garmin_client: Arc<GarminClient>,
+    config: Arc<crate::config::AppConfig>,
+) {
     tokio::spawn(async move {
         let mut last_notified_day = String::new();
 
@@ -857,7 +907,9 @@ pub fn start_race_readiness_notifier(garmin_client: Arc<GarminClient>, config: A
                             if let Some(ref it) = sw.item_type {
                                 if it == "race" || it == "event" || it == "primaryEvent" {
                                     if sw.date >= today_str {
-                                        if upcoming_race.is_none() || sw.date < upcoming_race.as_ref().unwrap().date {
+                                        if upcoming_race.is_none()
+                                            || sw.date < upcoming_race.as_ref().unwrap().date
+                                        {
                                             upcoming_race = Some(sw.clone());
                                         }
                                     }
@@ -866,12 +918,18 @@ pub fn start_race_readiness_notifier(garmin_client: Arc<GarminClient>, config: A
                         }
 
                         if let Some(race) = upcoming_race {
-                            if let Ok(race_date) = chrono::NaiveDate::parse_from_str(&race.date, "%Y-%m-%d") {
+                            if let Ok(race_date) =
+                                chrono::NaiveDate::parse_from_str(&race.date, "%Y-%m-%d")
+                            {
                                 let today_date = now.naive_local().date();
                                 let days_until = (race_date - today_date).num_days();
 
                                 if days_until == 14 || days_until == 7 || days_until == 2 {
-                                    let msg = generate_race_readiness_assessment(&data, &config.gemini_api_key).await;
+                                    let msg = generate_race_readiness_assessment(
+                                        &data,
+                                        &config.gemini_api_key,
+                                    )
+                                    .await;
                                     broadcast_message(&msg, &config).await;
                                 }
                             }
@@ -890,7 +948,10 @@ pub fn start_race_readiness_notifier(garmin_client: Arc<GarminClient>, config: A
     });
 }
 
-pub fn start_monthly_debrief_notifier(garmin_client: Arc<GarminClient>, config: Arc<crate::config::AppConfig>) {
+pub fn start_monthly_debrief_notifier(
+    garmin_client: Arc<GarminClient>,
+    config: Arc<crate::config::AppConfig>,
+) {
     tokio::spawn(async move {
         use chrono::Datelike;
         let mut last_sent_month = 0;
@@ -909,7 +970,8 @@ pub fn start_monthly_debrief_notifier(garmin_client: Arc<GarminClient>, config: 
             {
                 match garmin_client.fetch_data().await {
                     Ok(data) => {
-                        let ai_client = crate::ai_client::AiClient::new(config.gemini_api_key.clone());
+                        let ai_client =
+                            crate::ai_client::AiClient::new(config.gemini_api_key.clone());
                         let year = now.year();
                         let month = now.month();
 
@@ -1044,4 +1106,3 @@ pub fn start_monthly_debrief_notifier(garmin_client: Arc<GarminClient>, config: 
         }
     });
 }
-

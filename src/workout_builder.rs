@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
-use tracing::{info, error};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use strsim::levenshtein;
+use tracing::{error, info};
 
 // ... (constants remain the same, so we will keep them as is and just replace the struct and below)
 
@@ -323,8 +323,19 @@ impl WorkoutBuilder {
 
                 let weight_val = step.get("weight").and_then(Self::parse_weight);
 
-                let mut category = cat_key.clone();
-                let mut exercise_name = ex_key.clone();
+                let mut category_obj = cat_key.clone().map(|c| {
+                    json!({
+                        "categoryId": null,
+                        "categoryKey": c,
+                    })
+                });
+                let mut exercise_name_obj = ex_key.clone().map(|e| {
+                    json!({
+                        "exerciseNameId": null,
+                        "exerciseNameKey": e,
+                    })
+                });
+
                 let note = step.get("note").and_then(|n| n.as_str()).unwrap_or("");
 
                 let mut description = if note.is_empty() {
@@ -334,8 +345,8 @@ impl WorkoutBuilder {
                 };
 
                 if robust {
-                    category = None;
-                    exercise_name = None;
+                    category_obj = None;
+                    exercise_name_obj = None;
                     let mut desc = format!(
                         "Exercise: {} ({}). {}",
                         raw_name,
@@ -366,8 +377,8 @@ impl WorkoutBuilder {
                         "workoutTargetTypeId": TARGET_ID_NO_TARGET,
                         "workoutTargetTypeKey": TARGET_NO_TARGET,
                     },
-                    "category": category,
-                    "exerciseName": exercise_name,
+                    "category": category_obj,
+                    "exerciseName": exercise_name_obj,
                 });
 
                 if let Some(w) = weight_val {

@@ -1,7 +1,7 @@
 use crate::garmin_api::GarminApi;
-use tracing::{info, error};
 use crate::models::GarminResponse;
 use anyhow::{Context, Result};
+use tracing::{error, info};
 
 use crate::db::Database;
 use std::sync::Arc;

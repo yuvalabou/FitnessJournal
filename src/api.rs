@@ -1,4 +1,3 @@
-use tracing::{info, error};
 use axum::{
     extract::{rejection::JsonRejection, DefaultBodyLimit, Request, State},
     http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
@@ -17,6 +16,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
+use tracing::{error, info};
 
 use crate::coaching::Coach;
 use crate::db::Database;
@@ -524,7 +524,7 @@ async fn post_chat(
         history.push(("user".to_string(), prompt, created_at));
         history.push(("model".to_string(), response, created_at));
     }
-    
+
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -620,7 +620,9 @@ async fn get_recovery(State(state): State<ApiState>) -> Json<RecoveryResponse> {
     Json(response)
 }
 
-async fn get_recovery_history(State(state): State<ApiState>) -> Json<Vec<crate::db::RecoveryHistoryEntry>> {
+async fn get_recovery_history(
+    State(state): State<ApiState>,
+) -> Json<Vec<crate::db::RecoveryHistoryEntry>> {
     let db = state.database.lock().await;
     // Fetch the last 30 days of recovery history to render on the dashboard charts
     let history = db.get_recovery_history(30).unwrap_or_default();
