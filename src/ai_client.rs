@@ -67,13 +67,33 @@ impl AiClient {
         }
     }
 
+    fn get_valid_exercises_string() -> String {
+        let mut names = Vec::new();
+        if let Ok(content) = std::fs::read_to_string("Garmin Exercises Database - Exercises.csv") {
+            for line in content.lines().skip(2) {
+                if let Some(name) = line.split(',').next() {
+                    let trim = name.trim().replace("\"", "");
+                    if !trim.is_empty() {
+                        names.push(trim);
+                    }
+                }
+            }
+        }
+        if names.is_empty() {
+            "".to_string()
+        } else {
+            format!("\n\nCRITICAL RULE: When writing the JSON workout 'exercise' fields, YOU MUST EXACTLY MATCH one of the names from the following list. DO NOT hallucinate exercises (e.g. do not invent 'Dumbbell Goblet Squat'). If you cannot find the perfect exercise, use the closest matching exact string from this list:\n{}", names.join(", "))
+        }
+    }
+
     pub async fn generate_workout(&self, prompt: &str) -> Result<String> {
+        let mut sys_text =
+            "You are an elite Multi-Sport Coach. Follow instructions precisely.".to_string();
+        sys_text.push_str(&Self::get_valid_exercises_string());
+
         let request_body = GeminiRequest {
             system_instruction: Some(SystemInstruction {
-                parts: vec![Part {
-                    text: "You are an elite Multi-Sport Coach. Follow instructions precisely."
-                        .to_string(),
-                }],
+                parts: vec![Part { text: sys_text }],
             }),
             contents: vec![Content {
                 role: "user".to_string(),
@@ -150,6 +170,8 @@ impl AiClient {
             sys_instruction.push_str("\n\n=== LIVE ATHLETE CONTEXT ===\n");
             sys_instruction.push_str(ctx);
         }
+
+        sys_instruction.push_str(&Self::get_valid_exercises_string());
 
         let request_body = GeminiRequest {
             system_instruction: Some(SystemInstruction {

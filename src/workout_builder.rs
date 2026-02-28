@@ -3,7 +3,7 @@ use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use strsim::levenshtein;
-use tracing::{error, info};
+use tracing::info;
 
 // ... (constants remain the same, so we will keep them as is and just replace the struct and below)
 
@@ -101,25 +101,29 @@ impl WorkoutBuilder {
             .from_path(path)
         {
             let mut records = rdr.records();
-            let _ = records.next(); // Skip Group Headers
-
-            // Read actual headers to find indexes
             let mut name_idx = 0;
             let mut cat_idx = 0;
             let mut id_idx = 0;
 
-            if let Some(Ok(headers)) = records.next() {
-                for (i, v) in headers.iter().enumerate() {
+            // Search for the true header row (the one containing CATEGORY_GARMIN)
+            let mut found_headers = false;
+            while let Some(Ok(row)) = records.next() {
+                for (i, v) in row.iter().enumerate() {
                     let h = v.to_uppercase();
-                    if h == "NAME" {
+                    // Handle potential UTF-8 BOM on the first column or extraneous quotes
+                    if h.contains("NAME") && !h.contains("GARMIN") {
                         name_idx = i;
                     }
-                    if h == "CATEGORY_GARMIN" {
+                    if h.contains("CATEGORY_GARMIN") {
                         cat_idx = i;
+                        found_headers = true;
                     }
-                    if h == "NAME_GARMIN" {
+                    if h.contains("NAME_GARMIN") {
                         id_idx = i;
                     }
+                }
+                if found_headers {
+                    break;
                 }
             }
 
@@ -277,13 +281,9 @@ impl WorkoutBuilder {
                     STEP_TYPE_INTERVAL
                 };
 
-                let (mut cat_key, mut ex_key) = self.resolve_exercise(raw_name);
+                let (cat_key, ex_key) = self.resolve_exercise(raw_name);
 
-                if cat_key.is_none() {
-                    let fallback = raw_name.to_uppercase().replace(" ", "_");
-                    cat_key = Some(fallback.clone());
-                    ex_key = Some(fallback);
-                }
+                let is_unrecognized = cat_key.is_none();
 
                 let reps = step.get("reps");
                 let duration = step.get("time").or_else(|| step.get("duration"));
@@ -323,18 +323,8 @@ impl WorkoutBuilder {
 
                 let weight_val = step.get("weight").and_then(Self::parse_weight);
 
-                let mut category_obj = cat_key.clone().map(|c| {
-                    json!({
-                        "categoryId": null,
-                        "categoryKey": c,
-                    })
-                });
-                let mut exercise_name_obj = ex_key.clone().map(|e| {
-                    json!({
-                        "exerciseNameId": null,
-                        "exerciseNameKey": e,
-                    })
-                });
+                let mut category_obj = cat_key.clone().map(|c| json!(c));
+                let mut exercise_name_obj = ex_key.clone().map(|e| json!(e));
 
                 let note = step.get("note").and_then(|n| n.as_str()).unwrap_or("");
 
@@ -344,15 +334,10 @@ impl WorkoutBuilder {
                     Some(note.to_string())
                 };
 
-                if robust {
+                if robust || is_unrecognized {
                     category_obj = None;
                     exercise_name_obj = None;
-                    let mut desc = format!(
-                        "Exercise: {} ({}). {}",
-                        raw_name,
-                        ex_key.clone().unwrap_or_default(),
-                        note
-                    );
+                    let mut desc = format!("Exercise: {}. {}", raw_name, note);
                     if let Some(w) = weight_val {
                         desc.push_str(&format!(" Target: {}kg", w));
                     }

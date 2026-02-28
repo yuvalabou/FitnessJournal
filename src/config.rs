@@ -60,6 +60,7 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    #[allow(clippy::result_large_err)]
     pub fn load() -> Result<Self, figment::Error> {
         let mut config: AppConfig = Figment::from(figment::providers::Serialized::defaults(
             AppConfig::default(),

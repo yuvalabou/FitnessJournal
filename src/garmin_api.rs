@@ -2,7 +2,7 @@ use crate::models::*;
 use anyhow::{anyhow, Context, Result};
 use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
+use tracing::info;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct OAuth1Token {

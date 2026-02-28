@@ -774,12 +774,11 @@ pub async fn generate_race_readiness_assessment(
     let mut upcoming_race: Option<crate::models::ScheduledWorkout> = None;
     for sw in &data.scheduled_workouts {
         if let Some(ref it) = sw.item_type {
-            if it == "race" || it == "event" || it == "primaryEvent" {
-                if sw.date >= today_str {
-                    if upcoming_race.is_none() || sw.date < upcoming_race.as_ref().unwrap().date {
-                        upcoming_race = Some(sw.clone());
-                    }
-                }
+            if (it == "race" || it == "event" || it == "primaryEvent")
+                && sw.date >= today_str
+                && (upcoming_race.is_none() || sw.date < upcoming_race.as_ref().unwrap().date)
+            {
+                upcoming_race = Some(sw.clone());
             }
         }
     }
@@ -905,14 +904,12 @@ pub fn start_race_readiness_notifier(
                         let mut upcoming_race: Option<crate::models::ScheduledWorkout> = None;
                         for sw in &data.scheduled_workouts {
                             if let Some(ref it) = sw.item_type {
-                                if it == "race" || it == "event" || it == "primaryEvent" {
-                                    if sw.date >= today_str {
-                                        if upcoming_race.is_none()
-                                            || sw.date < upcoming_race.as_ref().unwrap().date
-                                        {
-                                            upcoming_race = Some(sw.clone());
-                                        }
-                                    }
+                                if (it == "race" || it == "event" || it == "primaryEvent")
+                                    && sw.date >= today_str
+                                    && (upcoming_race.is_none()
+                                        || sw.date < upcoming_race.as_ref().unwrap().date)
+                                {
+                                    upcoming_race = Some(sw.clone());
                                 }
                             }
                         }

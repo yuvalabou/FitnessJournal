@@ -16,7 +16,7 @@ use crate::garmin_client::GarminClient;
 use clap::Parser;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 
 #[derive(Parser, Debug)]
 #[command(name = "fitness_journal", about = "Fitness Coach AI")]
@@ -139,14 +139,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let json_str = std::fs::read_to_string(&file)?;
         let builder = crate::workout_builder::WorkoutBuilder::new();
         let parsed: serde_json::Value = serde_json::from_str(&json_str)?;
-        let payload = builder.build_workout_payload(&parsed, false);
-        match garmin_client
-            .api
-            .connectapi_post("/workout-service/workout", &payload)
-            .await
-        {
-            Ok(res) => info!("Success! Workout ID: {:?}", res.get("workoutId")),
-            Err(e) => info!("Failed to create workout: {}", e),
+        let workouts = if let Some(arr) = parsed.as_array() {
+            arr.clone()
+        } else {
+            vec![parsed]
+        };
+
+        for w in workouts {
+            let payload = builder.build_workout_payload(&w, false);
+            info!(
+                "Sending payload: {}",
+                serde_json::to_string_pretty(&payload)?
+            );
+            match garmin_client
+                .api
+                .connectapi_post("/workout-service/workout", &payload)
+                .await
+            {
+                Ok(res) => info!("Success! Workout ID: {:?}", res.get("workoutId")),
+                Err(e) => info!("Failed to create workout: {}", e),
+            }
         }
     }
 
@@ -330,16 +342,14 @@ pub async fn run_coach_pipeline(
     let (context, auto_analyze_sports) = load_profile_context();
 
     // 4. Auto-Analyze Activities (Signal Cheerleader)
-    if !config.gemini_api_key.is_empty() {
-        if !auto_analyze_sports.is_empty() {
-            auto_analyze_recent_activities(
-                &detailed_activities,
-                &auto_analyze_sports,
-                &database,
-                &config,
-            )
-            .await;
-        }
+    if !config.gemini_api_key.is_empty() && !auto_analyze_sports.is_empty() {
+        auto_analyze_recent_activities(
+            &detailed_activities,
+            &auto_analyze_sports,
+            &database,
+            &config,
+        )
+        .await;
     }
 
     // 5. Generate Brief
