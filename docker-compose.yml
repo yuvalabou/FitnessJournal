@@ -24,7 +24,7 @@ services:
       - TZ=Europe/Zurich
       - RUST_LOG=info
       - DATABASE_URL=sqlite:///app/data/fitness_journal.db
-      - PROFILES_PATH=/app/data/profiles.json
+      - PROFILES_PATH=/app/profiles.json
     depends_on:
       - signal-api
     volumes:
@@ -48,7 +48,7 @@ services:
       - ./.env:/app/.env
     environment:
       DATABASE_URL: "sqlite:///app/data/fitness_journal.db"
-      PROFILES_PATH: "/app/data/profiles.json"
+      PROFILES_PATH: "/app/profiles.json"
       API_BIND_ADDR: 0.0.0.0:3001
       RUST_LOG: info
     ports:
