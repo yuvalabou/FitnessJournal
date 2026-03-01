@@ -433,7 +433,9 @@ pub fn load_profile_context() -> (crate::coaching::CoachContext, Vec<String>) {
 
     let mut auto_analyze_sports = Vec::new();
 
-    if let Ok(profile_data) = std::fs::read_to_string("profiles.json") {
+    // Load active profile from profiles.json
+    let profiles_path = std::env::var("PROFILES_PATH").unwrap_or_else(|_| "data/profiles.json".to_string());
+    if let Ok(profile_data) = std::fs::read_to_string(&profiles_path) {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&profile_data) {
             if let Some(active_name) = json.get("active_profile").and_then(|v| v.as_str()) {
                 info!("Loaded active equipment profile: {}", active_name);
@@ -491,7 +493,9 @@ async fn auto_analyze_recent_activities(
     database: &Arc<Mutex<Database>>,
     config: &crate::config::AppConfig,
 ) {
-    let ai_client = crate::ai_client::AiClient::new(config.gemini_api_key.clone());
+    let gemini_model = std::env::var("GEMINI_MODEL")
+        .unwrap_or_else(|_| "gemini-3-flash-preview".to_string());
+    let ai_client = crate::ai_client::AiClient::new(config.gemini_api_key.clone(), gemini_model);
     let db = database.lock().await;
 
     // Only analyze recent activities (from today or yesterday) to avoid spamming 50+ backlogs
@@ -503,6 +507,7 @@ async fn auto_analyze_recent_activities(
     for act in detailed_activities {
         if !act.start_time.starts_with(&today_str) && !act.start_time.starts_with(&yesterday_str) {
             continue;
+        }
         }
 
         if let (Some(id), Some(act_type)) = (act.id, act.get_activity_type()) {
@@ -554,7 +559,9 @@ async fn generate_and_publish_plan(
     info!("\nGEMINI_API_KEY found! Generating workout via Gemini...");
 
     // Initialize AI Client
-    let ai_client = crate::ai_client::AiClient::new(config.gemini_api_key.clone());
+    let gemini_model = std::env::var("GEMINI_MODEL")
+        .unwrap_or_else(|_| "gemini-3-flash-preview".to_string());
+    let ai_client = crate::ai_client::AiClient::new(config.gemini_api_key.clone(), gemini_model);
 
     info!("Cleaning up previously generated workouts before generating a new plan...");
     if let Err(e) = garmin_client.cleanup_ai_workouts().await {
