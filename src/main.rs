@@ -508,7 +508,6 @@ async fn auto_analyze_recent_activities(
         if !act.start_time.starts_with(&today_str) && !act.start_time.starts_with(&yesterday_str) {
             continue;
         }
-        }
 
         if let (Some(id), Some(act_type)) = (act.id, act.get_activity_type()) {
             if auto_analyze_sports.contains(&act_type.to_string()) {
