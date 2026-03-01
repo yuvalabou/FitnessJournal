@@ -536,19 +536,19 @@ export default async function Dashboard() {
                   <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded-full">{extractType(workout.type || workout.activity_type) || "Activity"}</span>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  {workout.duration && (
+                  {!!workout.duration && (
                     <div className="flex flex-col">
                       <span className="text-gray-500 text-xs">Duration</span>
                       <span className="text-gray-300">{(workout.duration / 60).toFixed(0)} min</span>
                     </div>
                   )}
-                  {workout.distance && (
+                  {!!workout.distance && (
                     <div className="flex flex-col">
                       <span className="text-gray-500 text-xs">Distance</span>
                       <span className="text-gray-300">{(workout.distance / 1000).toFixed(1)} km</span>
                     </div>
                   )}
-                  {workout.averageHR && (
+                  {!!workout.averageHR && (
                     <div className="flex flex-col">
                       <span className="text-gray-500 text-xs">Avg HR</span>
                       <span className="text-gray-300">{Math.round(workout.averageHR)} bpm</span>

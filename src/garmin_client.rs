@@ -45,8 +45,13 @@ impl GarminClient {
                     .as_secs();
                 let elapsed = now.saturating_sub(updated_at);
 
-                if elapsed < 3600 {
-                    // 1 Hour
+                let cache_ttl = std::env::var("GARMIN_CACHE_TTL_SECONDS")
+                    .unwrap_or_else(|_| "300".to_string())
+                    .parse::<u64>()
+                    .unwrap_or(300);
+
+                if elapsed < cache_ttl {
+                    // Check Cache
                     info!("Using cached Garmin data ({} mins old)...", elapsed / 60);
                     let response: GarminResponse = serde_json::from_str(&cached_data)
                         .context("Failed to parse cached Garmin JSON output")?;
