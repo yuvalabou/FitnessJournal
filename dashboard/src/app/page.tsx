@@ -313,7 +313,7 @@ export default async function Dashboard() {
         <header className="flex flex-col md:flex-row md:items-start md:justify-between space-y-4 md:space-y-0">
           <div className="space-y-4">
             <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-500">
-              Fitness Intelligence
+              Fitness Journal
             </h1>
             <p className="text-gray-400 text-lg md:text-xl max-w-2xl">
               Live AI Coaching Dashboard and Garmin Connect Integration.
