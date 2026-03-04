@@ -406,6 +406,11 @@ impl GarminApi {
         self.connectapi_get("/workout-service/workouts").await
     }
 
+    pub async fn get_workout_by_id(&self, workout_id: i64) -> Result<serde_json::Value> {
+        self.connectapi_get(&format!("/workout-service/workout/{}", workout_id))
+            .await
+    }
+
     pub async fn get_sleep_data(
         &self,
         display_name: &str,

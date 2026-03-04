@@ -25,6 +25,7 @@ services:
       - RUST_LOG=info
       - DATABASE_URL=sqlite:///app/data/fitness_journal.db
       - PROFILES_PATH=/app/profiles.json
+      - GENERATED_WORKOUTS_PATH=/app/data/generated_workouts.json
     depends_on:
       - signal-api
     volumes:

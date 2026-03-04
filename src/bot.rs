@@ -1111,3 +1111,44 @@ pub fn start_monthly_debrief_notifier(
         }
     });
 }
+
+pub fn start_strength_validation_notifier(
+    garmin_client: Arc<GarminClient>,
+    config: Arc<crate::config::AppConfig>,
+) {
+    tokio::spawn(async move {
+        let mut last_validated_date = String::new();
+
+        loop {
+            let now = chrono::Local::now();
+            let today = now.format("%Y-%m-%d").to_string();
+            let current_time = now.format("%H:%M").to_string();
+            let target_time = &config.strength_validation_time;
+
+            if current_time == *target_time && last_validated_date != today {
+                info!("⏰ Running daily strength workout validation...");
+
+                match garmin_client.validate_and_fix_strength_workouts().await {
+                    Ok(corrections) => {
+                        if corrections.is_empty() {
+                            info!("✅ All scheduled strength workouts are in sync.");
+                        } else {
+                            let msg = format!(
+                                "🔧 **Strength Workout Validation**\n\n{} correction(s) applied:\n\n{}",
+                                corrections.len(),
+                                corrections.join("\n\n")
+                            );
+                            broadcast_message(&msg, &config).await;
+                        }
+                        last_validated_date = today;
+                    }
+                    Err(e) => {
+                        error!("Strength validation notifier failed: {}", e);
+                    }
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        }
+    });
+}

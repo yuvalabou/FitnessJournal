@@ -21,6 +21,8 @@ pub struct AppConfig {
     pub monthly_review_day: u32,
     pub monthly_review_time: String,
     pub force_monthly_debrief: bool,
+    pub strength_validation_time: String,
+    pub week_start_day: String,
 
     // API Settings
     pub cors_allowed_origins: String,
@@ -48,6 +50,8 @@ impl Default for AppConfig {
             monthly_review_day: 1,
             monthly_review_time: "18:00".to_string(),
             force_monthly_debrief: false,
+            strength_validation_time: "04:00".to_string(),
+            week_start_day: "Mon".to_string(),
             cors_allowed_origins: "http://localhost:3000".to_string(),
             api_auth_token: None,
             api_bind_addr: "127.0.0.1:3001".to_string(),

@@ -264,6 +264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             crate::bot::start_weekly_review_notifier(garmin_client.clone(), config.clone());
             crate::bot::start_monthly_debrief_notifier(garmin_client.clone(), config.clone());
             crate::bot::start_race_readiness_notifier(garmin_client.clone(), config.clone());
+            crate::bot::start_strength_validation_notifier(garmin_client.clone(), config.clone());
         }
         loop {
             run_coach_pipeline(
@@ -363,6 +364,7 @@ pub async fn run_coach_pipeline(
         recovery_metrics: &recovery,
         context: &context,
         progression_history: &progression_history,
+        week_start_day: &config.week_start_day,
     });
 
     info!("Coach brief generated ({} characters).", brief.len());
@@ -382,7 +384,36 @@ pub async fn run_coach_pipeline(
             }
         });
 
-        if force_generation || !has_ai_workouts {
+        // Secondary safeguard: check if generated_workouts.json has future workouts.
+        // This prevents accidental regeneration on container restart when the Garmin
+        // calendar fetch fails or returns empty data.
+        let has_local_plan = if !has_ai_workouts {
+            let workouts_path = std::env::var("GENERATED_WORKOUTS_PATH")
+                .unwrap_or_else(|_| "generated_workouts.json".to_string());
+            if let Ok(json_str) = std::fs::read_to_string(&workouts_path) {
+                let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+                if let Ok(workouts) = serde_json::from_str::<Vec<serde_json::Value>>(&json_str) {
+                    let has_future = workouts.iter().any(|w| {
+                        w.get("scheduledDate")
+                            .and_then(|d| d.as_str())
+                            .map(|d| d >= today.as_str())
+                            .unwrap_or(false)
+                    });
+                    if has_future {
+                        info!("\nNo AI workouts found in Garmin calendar, but generated_workouts.json has future workouts. Skipping regeneration to protect existing schedule.");
+                    }
+                    has_future
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if force_generation || (!has_ai_workouts && !has_local_plan) {
             generate_and_publish_plan(&brief, &garmin_client, &database, &config).await;
         } else {
             info!("\nAI Workouts already scheduled. Skipping automatic workout generation.");
@@ -591,8 +622,9 @@ async fn generate_and_publish_plan(
 
             match crate::ai_client::AiClient::extract_json_block(&markdown_response) {
                 Ok(json_str) => {
-                    let out_file = "generated_workouts.json";
-                    if let Err(e) = std::fs::write(out_file, &json_str) {
+                    let out_file = std::env::var("GENERATED_WORKOUTS_PATH")
+                        .unwrap_or_else(|_| "generated_workouts.json".to_string());
+                    if let Err(e) = std::fs::write(&out_file, &json_str) {
                         error!("Failed to write to {}: {}", out_file, e);
                     } else {
                         info!("Saved structured workout to {}", out_file);

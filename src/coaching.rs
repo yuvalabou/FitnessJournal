@@ -1,5 +1,5 @@
 use crate::models::{TrainingPlan, TrainingTarget, WorkoutType};
-use chrono::{Duration, Utc};
+use chrono::{Datelike, Duration, Utc};
 use tracing::info;
 
 pub struct CoachContext {
@@ -17,6 +17,7 @@ pub struct BriefInput<'a> {
     pub recovery_metrics: &'a Option<crate::models::GarminRecoveryMetrics>,
     pub context: &'a CoachContext,
     pub progression_history: &'a [String],
+    pub week_start_day: &'a str,
 }
 
 pub struct Coach;
@@ -186,6 +187,7 @@ impl Coach {
             recovery_metrics,
             context,
             progression_history,
+            week_start_day,
         } = input;
         let now = Utc::now();
         let mut brief = String::new();
@@ -196,6 +198,27 @@ impl Coach {
 
         let today_date_str = now.format("%Y-%m-%d").to_string();
         brief.push_str(&format!("**Current Date**: {}\n\n", today_date_str));
+
+        // Compute week boundaries based on configurable start day
+        let week_start_chrono = match week_start_day {
+            "Mon" => chrono::Weekday::Mon,
+            "Tue" => chrono::Weekday::Tue,
+            "Wed" => chrono::Weekday::Wed,
+            "Thu" => chrono::Weekday::Thu,
+            "Fri" => chrono::Weekday::Fri,
+            "Sat" => chrono::Weekday::Sat,
+            "Sun" => chrono::Weekday::Sun,
+            _ => chrono::Weekday::Mon,
+        };
+        let today_weekday = now.date_naive().weekday();
+        let days_since_week_start = (today_weekday.num_days_from_monday() as i64
+            - week_start_chrono.num_days_from_monday() as i64
+            + 7) % 7;
+        let week_start_date = now.date_naive() - Duration::days(days_since_week_start);
+        let week_end_date = week_start_date + Duration::days(6);
+        let week_start_str = week_start_date.format("%Y-%m-%d").to_string();
+        let week_end_str = week_end_date.format("%Y-%m-%d").to_string();
+        brief.push_str(&format!("**Training Week**: {} to {} (starts on {})\n\n", week_start_str, week_end_str, week_start_day));
 
         // Let's summarize what was already done today from the history
         brief.push_str("**Activities Completed Today**:\n");
@@ -551,9 +574,56 @@ impl Coach {
             brief.push('\n');
         }
 
-        // 6. Required Output
+        // 6. Completed Strength This Week
+        {
+            let strength_this_week: Vec<&crate::models::GarminActivity> = detailed_activities
+                .iter()
+                .filter(|a| {
+                    let is_strength = a.get_activity_type()
+                        .map(|t| t.contains("strength") || t.contains("fitness"))
+                        .unwrap_or(false);
+                    let in_week = a.start_time.as_str() >= week_start_str.as_str()
+                        && a.start_time.as_str() <= week_end_str.as_str();
+                    is_strength && in_week
+                })
+                .collect();
+
+            brief.push_str("## 🏋️ Strength Workouts Already Completed This Week\n");
+            if strength_this_week.is_empty() {
+                brief.push_str("- None completed yet.\n");
+            } else {
+                for act in &strength_this_week {
+                    let date = act.start_time.split('T').next().unwrap_or("");
+                    let name = act.name.as_deref().unwrap_or("Strength Training");
+                    let dur = act.duration.unwrap_or(0.0) / 60.0;
+                    let mut focus_str = String::new();
+                    if let Some(crate::models::GarminSetsData::Details(data)) = &act.sets {
+                        let mut exercises = std::collections::HashSet::new();
+                        for set in &data.exercise_sets {
+                            if let Some(ex) = set.exercises.first() {
+                                exercises.insert(ex.category.clone());
+                            }
+                        }
+                        if !exercises.is_empty() {
+                            let sorted: Vec<_> = exercises.into_iter().collect();
+                            focus_str = format!(" | Focus: {}", sorted.join(", "));
+                        }
+                    }
+                    brief.push_str(&format!("- **{}** {} ({:.0} min{})\n", date, name, dur, focus_str));
+                }
+            }
+            brief.push_str(&format!(
+                "\n*You have completed {} strength session(s) so far this week ({} to {}).*\n\n",
+                strength_this_week.len(), week_start_str, week_end_str
+            ));
+        }
+
+        // 7. Required Output
         brief.push_str("## Required Output\n");
-        brief.push_str("Based on the Athlete Profile, Goals, and Activity Log, please generate the training plan for the **Next 7 Days**.\n");
+        brief.push_str(&format!(
+            "Based on the Athlete Profile, Goals, and Activity Log, please generate the training plan for the **remaining days of this week** ({} to {}).\n",
+            today_date_str, week_end_str
+        ));
         brief.push_str("You **MUST** output the Strength Workouts in the following JSON format (inside a json code block). \n");
         brief.push_str("**CRITICAL RULES**:\n");
         brief.push_str(
@@ -561,7 +631,8 @@ impl Coach {
         );
         brief.push_str("2. **EXERCISE VOCABULARY**: Our system automatically maps your exercises to the Garmin database. You may use any standard exercise name (e.g. 'Barbell Bench Press', 'Goblet Squat', 'Pull Up', 'Dumbbell Hammer Curl', etc.). The system will find the closest match. Try to be as specific as possible.\n");
         brief.push_str("3. **REST PERIODS**: For the `rest` field, output an integer in seconds (e.g., `rest: 90`), or the exact string `\"LAP\"` if the rest should remain untimed until the user manually presses the lap button.\n");
-        brief.push_str("4. **SCHEDULE**: Include a `scheduledDate` field at the top level of each workout, formatted as \"YYYY-MM-DD\". Assign the date you logically want the athlete to perform this (distributed across the next 7 days starting from tomorrow).\n");
+        brief.push_str(&format!("4. **SCHEDULE**: Include a `scheduledDate` field at the top level of each workout, formatted as \"YYYY-MM-DD\". Only schedule workouts between {} (tomorrow at earliest) and {} (end of week). Do NOT regenerate workouts for days that already have a completed strength session listed above.\n", today_date_str, week_end_str));
+        brief.push_str("5. **SKIP COMPLETED**: Review the 'Strength Workouts Already Completed This Week' section above. Do NOT generate workouts that duplicate muscle groups or workout types already completed. Only fill in the MISSING sessions for the rest of the week.\n");
 
         brief.push_str("\n```json\n");
         brief.push_str("[\n");
